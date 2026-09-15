@@ -30,9 +30,6 @@ dependencies:
   # Formatação de datas
   intl: ^0.19.0
 
-  # Áudio e Sons de Bipe
-  audioplayers: ^6.0.0
-
   # Ícones e Material 3
   cupertino_icons: ^1.0.8
 
@@ -43,6 +40,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-
-  # assets:
-  #   - assets/sounds/

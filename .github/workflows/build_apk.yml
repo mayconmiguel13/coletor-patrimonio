@@ -5,7 +5,7 @@ on:
     branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
-  workflow_dispatch: # Permite disparar manualmente clicando em um botão no GitHub
+  workflow_dispatch:
 
 jobs:
   build:
@@ -28,14 +28,28 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Gerar estrutura nativa Android
-        run: flutter create . --platforms=android --org com.coletor
+      - name: Limpar diretório android anterior
+        run: rm -rf android
+
+      - name: Gerar estrutura nativa Android completa
+        run: flutter create . --platforms=android --org com.coletor --project-name coletor_patrimonio
+
+      - name: Configurar Permissões no AndroidManifest.xml
+        run: |
+          sed -i '/<application/i \    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.VIBRATE" />\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />' android/app/src/main/AndroidManifest.xml
+
+      - name: Ajustar minSdkVersion para 21
+        run: |
+          find android/ -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i 's/minSdkVersion = flutter.minSdkVersion/minSdkVersion = 21/g' {} + || true
+          find android/ -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/g' {} + || true
+          find android/ -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i 's/minSdkVersion 16/minSdkVersion 21/g' {} + || true
+          find android/ -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i 's/minSdkVersion 19/minSdkVersion 21/g' {} + || true
 
       - name: Baixar Dependências
         run: flutter pub get
 
       - name: Compilar APK de Release
-        run: flutter build apk --release
+        run: flutter build apk --release --no-tree-shake-icons
 
       - name: Disponibilizar APK para Download (Artifacts)
         uses: actions/upload-artifact@v4

@@ -122,10 +122,10 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
     final count = provider.contadorAtual;
     final meta = provider.metaColeta;
 
-    return WillPopScope(
-      onWillPop: () async {
-        FeedbackUtils.tapFeedback();
-        return true;
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) FeedbackUtils.tapFeedback();
       },
       child: Scaffold(
         backgroundColor: Colors.black,
