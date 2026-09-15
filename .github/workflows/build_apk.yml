@@ -1,0 +1,46 @@
+name: Build APK Coletor de Patrimonio
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch: # Permite disparar manualmente clicando em um botão no GitHub
+
+jobs:
+  build:
+    name: Compilar APK Android
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar Código do Repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Configurar Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Gerar estrutura nativa Android
+        run: flutter create . --platforms=android --org com.coletor
+
+      - name: Baixar Dependências
+        run: flutter pub get
+
+      - name: Compilar APK de Release
+        run: flutter build apk --release
+
+      - name: Disponibilizar APK para Download (Artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: coletor-patrimonio-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14

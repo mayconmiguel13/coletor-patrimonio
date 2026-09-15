@@ -1,0 +1,48 @@
+name: coletor_patrimonio
+description: "Aplicativo ágil para coleta de patrimônio via QR Code / Código de barras"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Armazenamento ultra-rápido NoSQL em memória + binário
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+
+  # Scanner de QR Code e Código de Barras com ML Kit
+  mobile_scanner: ^5.2.3
+
+  # Geração de Excel (.xlsx) puro em Dart com suporte a múltiplas abas
+  excel: ^4.0.6
+
+  # Compartilhamento e Salvamento de arquivos
+  share_plus: ^10.0.2
+  path_provider: ^2.1.4
+
+  # Gerenciamento de estado reativo
+  provider: ^6.1.2
+
+  # Formatação de datas
+  intl: ^0.19.0
+
+  # Áudio e Sons de Bipe
+  audioplayers: ^6.0.0
+
+  # Ícones e Material 3
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
+  # assets:
+  #   - assets/sounds/
