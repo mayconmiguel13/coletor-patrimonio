@@ -34,16 +34,41 @@ jobs:
       - name: Gerar estrutura nativa Android completa
         run: flutter create . --platforms=android --org com.coletor --project-name coletor_patrimonio
 
-      - name: Configurar Permissões no AndroidManifest.xml
+      - name: Configurar Permissões e minSdkVersion via Python
         run: |
-          sed -i '/<application/i \    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.VIBRATE" />\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />' android/app/src/main/AndroidManifest.xml
+          python3 - << 'EOF'
+          import glob
 
-      - name: Ajustar minSdkVersion para 21
-        run: |
-          find android/ -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i 's/minSdkVersion = flutter.minSdkVersion/minSdkVersion = 21/g' {} + || true
-          find android/ -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/g' {} + || true
-          find android/ -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i 's/minSdkVersion 16/minSdkVersion 21/g' {} + || true
-          find android/ -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) -exec sed -i 's/minSdkVersion 19/minSdkVersion 21/g' {} + || true
+          # 1. Permissões no AndroidManifest.xml
+          manifest_path = "android/app/src/main/AndroidManifest.xml"
+          with open(manifest_path, "r", encoding="utf-8") as f:
+              manifest = f.read()
+
+          perms = """
+              <uses-permission android:name="android.permission.CAMERA" />
+              <uses-permission android:name="android.permission.VIBRATE" />
+              <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+              <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+              <uses-feature android:name="android.hardware.camera" android:required="false" />
+          """
+
+          if "<application" in manifest:
+              manifest = manifest.replace("<application", perms + "\n    <application", 1)
+              with open(manifest_path, "w", encoding="utf-8") as f:
+                  f.write(manifest)
+              print("AndroidManifest.xml atualizado com sucesso!")
+
+          # 2. Ajustar minSdkVersion para 21
+          for path in glob.glob("android/app/build.gradle*"):
+              with open(path, "r", encoding="utf-8") as f:
+                  bg = f.read()
+              bg = bg.replace("flutter.minSdkVersion", "21")
+              bg = bg.replace("minSdkVersion 16", "minSdkVersion 21")
+              bg = bg.replace("minSdkVersion 19", "minSdkVersion 21")
+              with open(path, "w", encoding="utf-8") as f:
+                  f.write(bg)
+              print(f"minSdkVersion ajustado em {path}!")
+          EOF
 
       - name: Baixar Dependências
         run: flutter pub get
