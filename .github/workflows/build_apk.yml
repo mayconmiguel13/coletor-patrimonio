@@ -34,7 +34,7 @@ jobs:
       - name: Gerar estrutura nativa Android completa
         run: flutter create . --platforms=android --org com.coletor --project-name coletor_patrimonio
 
-      - name: Configurar Permissões e minSdkVersion via Python
+      - name: Configurar Permissões e SDK via Python
         run: |
           python3 - << 'EOF'
           import glob
@@ -56,25 +56,37 @@ jobs:
               manifest = manifest.replace("<application", perms + "\n    <application", 1)
               with open(manifest_path, "w", encoding="utf-8") as f:
                   f.write(manifest)
-              print("AndroidManifest.xml atualizado com sucesso!")
 
-          # 2. Ajustar minSdkVersion para 21
+          # 2. Ajustar compileSdk 34 e minSdk 21
           for path in glob.glob("android/app/build.gradle*"):
               with open(path, "r", encoding="utf-8") as f:
                   bg = f.read()
               bg = bg.replace("flutter.minSdkVersion", "21")
+              bg = bg.replace("flutter.compileSdkVersion", "34")
               bg = bg.replace("minSdkVersion 16", "minSdkVersion 21")
               bg = bg.replace("minSdkVersion 19", "minSdkVersion 21")
               with open(path, "w", encoding="utf-8") as f:
                   f.write(bg)
-              print(f"minSdkVersion ajustado em {path}!")
           EOF
 
       - name: Baixar Dependências
         run: flutter pub get
 
       - name: Compilar APK de Release
-        run: flutter build apk --release --no-tree-shake-icons
+        run: |
+          flutter build apk --release --no-tree-shake-icons -v > build.log 2>&1 || {
+            echo "=== RESUMO DO ERRO DE COMPILAÇÃO ==="
+            grep -E -C 3 "e:|FAILURE|Exception|error:" build.log | tail -n 60 || tail -n 60 build.log
+            exit 1
+          }
+
+      - name: Salvar Log de Erro se Falhar
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-error-log
+          path: build.log
+          if-no-files-found: ignore
 
       - name: Disponibilizar APK para Download (Artifacts)
         uses: actions/upload-artifact@v4
