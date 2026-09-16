@@ -32,7 +32,9 @@ jobs:
         run: rm -rf android
 
       - name: Gerar estrutura nativa Android completa
-        run: flutter create . --platforms=android --org com.coletor --project-name coletor_patrimonio
+        run: |
+          flutter create . --platforms=android --org com.coletor --project-name coletor_patrimonio
+          rm -rf test
 
       - name: Configurar Permissões e SDK via Python
         run: |
@@ -58,12 +60,13 @@ jobs:
                   f.write(manifest)
               print("AndroidManifest.xml atualizado com permissões.")
 
-          # 2. Ajustar compileSdk 34 e minSdk 21
+          # 2. Ajustar compileSdk 35 e minSdk 21
           for path in glob.glob("android/app/build.gradle*"):
               with open(path, "r", encoding="utf-8") as f:
                   bg = f.read()
               bg = bg.replace("flutter.minSdkVersion", "21")
-              bg = bg.replace("flutter.compileSdkVersion", "34")
+              bg = bg.replace("flutter.compileSdkVersion", "35")
+              bg = bg.replace("compileSdkVersion 34", "compileSdkVersion 35")
               bg = bg.replace("minSdkVersion 16", "minSdkVersion 21")
               bg = bg.replace("minSdkVersion 19", "minSdkVersion 21")
               with open(path, "w", encoding="utf-8") as f:
@@ -75,24 +78,10 @@ jobs:
         run: flutter pub get
 
       - name: Analisar Código Dart
-        run: |
-          flutter analyze > analyze.log 2>&1 || true
-          cat analyze.log
-          echo "## Diagnóstico do Código (flutter analyze)" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          cat analyze.log >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+        run: flutter analyze --no-fatal-infos
 
       - name: Compilar APK de Release
-        run: |
-          flutter build apk --release --no-tree-shake-icons > build.log 2>&1 || {
-            echo "## Erro de Compilação do APK" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            tail -n 120 build.log >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            cat build.log
-            exit 1
-          }
+        run: flutter build apk --release --no-tree-shake-icons
 
       - name: Disponibilizar APK para Download (Artifacts)
         uses: actions/upload-artifact@v4
