@@ -388,6 +388,7 @@ class _ValidationScreenState extends State<ValidationScreen>
           equipment: eq,
           index: index + 1,
           onDelete: () => provider.deletarEquipamento(eq.id),
+          onToggleTipo: () => provider.alternarTipoEquipamento(eq.id),
         );
       },
     );

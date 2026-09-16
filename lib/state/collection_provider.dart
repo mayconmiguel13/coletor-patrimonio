@@ -19,6 +19,7 @@ class CollectionProvider extends ChangeNotifier {
   String? _ultimoCodigoLido;
   String? _mensagemAviso;
   bool _isProcessandoScan = false;
+  bool _isSilencioso = false;
   DateTime? _ultimoScanTimestamp;
 
   // Getters
@@ -28,6 +29,13 @@ class CollectionProvider extends ChangeNotifier {
   String? get ultimoCodigoLido => _ultimoCodigoLido;
   String? get mensagemAviso => _mensagemAviso;
   bool get isProcessandoScan => _isProcessandoScan;
+  bool get isSilencioso => _isSilencioso;
+
+  void toggleSilencioso() {
+    _isSilencioso = !_isSilencioso;
+    FeedbackUtils.tapFeedback();
+    notifyListeners();
+  }
 
   // Equipamentos filtrados pelo tipo ativo
   List<Equipment> get equipamentosDoTipoAtual =>
@@ -103,7 +111,7 @@ class CollectionProvider extends ChangeNotifier {
         _ultimoScanTimestamp = agora;
         _mensagemAviso = '⚠️ Código já foi coletado nesta localidade!';
         notifyListeners();
-        await FeedbackUtils.errorFeedback();
+        await FeedbackUtils.errorFeedback(silent: _isSilencioso);
 
         // Limpa o aviso após 2 segundos
         Future.delayed(const Duration(seconds: 2), () {
@@ -128,12 +136,68 @@ class CollectionProvider extends ChangeNotifier {
       _equipamentos.add(novoItem);
 
       // 3. Feedback imediato tátil e sonoro
-      await FeedbackUtils.successFeedback();
+      await FeedbackUtils.successFeedback(silent: _isSilencioso);
       notifyListeners();
 
       return true;
     } finally {
       _isProcessandoScan = false;
+    }
+  }
+
+  /// Inserção manual de patrimônio (quando a etiqueta estiver danificada)
+  Future<bool> processarInsercaoManual(String rawCode) async {
+    final codigo = rawCode.trim();
+    if (codigo.isEmpty) return false;
+
+    final jaExiste = _repository.exists(
+      localidade: _localidade,
+      tipo: _tipoEquipamento,
+      codigoLido: codigo,
+    );
+
+    if (jaExiste) {
+      _mensagemAviso = '⚠️ Código já foi coletado nesta localidade!';
+      notifyListeners();
+      await FeedbackUtils.errorFeedback(silent: _isSilencioso);
+      return false;
+    }
+
+    final novoItem = await _repository.insertEquipment(
+      localidade: _localidade,
+      tipo: _tipoEquipamento,
+      codigoLido: codigo,
+    );
+
+    _ultimoCodigoLido = codigo;
+    _mensagemAviso = null;
+    _equipamentos.add(novoItem);
+
+    await FeedbackUtils.successFeedback(silent: _isSilencioso);
+    notifyListeners();
+    return true;
+  }
+
+  /// Alterna a categoria de um equipamento já coletado (CPU <-> Monitor)
+  Future<void> alternarTipoEquipamento(int id) async {
+    final index = _equipamentos.indexWhere((e) => e.id == id);
+    if (index != -1) {
+      final item = _equipamentos[index];
+      final novoTipo = item.tipo == AppConstants.tipoCpu
+          ? AppConstants.tipoMonitor
+          : AppConstants.tipoCpu;
+
+      await _repository.updateEquipmentTipo(id, novoTipo);
+      _equipamentos[index] = Equipment(
+        id: item.id,
+        localidade: item.localidade,
+        tipo: novoTipo,
+        codigoLido: item.codigoLido,
+        timestamp: item.timestamp,
+        sincronizado: item.sincronizado,
+      );
+      await FeedbackUtils.tapFeedback();
+      notifyListeners();
     }
   }
 

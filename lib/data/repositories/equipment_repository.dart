@@ -139,6 +139,23 @@ class EquipmentRepository {
     return false;
   }
 
+  /// Atualiza o tipo (CPU <-> Monitor) de um equipamento existente
+  Future<void> updateEquipmentTipo(int id, String novoTipo) async {
+    final raw = box.get(id);
+    if (raw is Map) {
+      final eq = Equipment.fromMap(raw);
+      final updated = Equipment(
+        id: eq.id,
+        localidade: eq.localidade,
+        tipo: novoTipo,
+        codigoLido: eq.codigoLido,
+        timestamp: eq.timestamp,
+        sincronizado: eq.sincronizado,
+      );
+      await box.put(id, updated.toMap());
+    }
+  }
+
   /// Exclui um equipamento específico pelo ID
   Future<void> deleteEquipment(int id) async {
     await box.delete(id);

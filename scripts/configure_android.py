@@ -74,8 +74,12 @@ class MainActivity: FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "beepSuccess" -> {
-                    vibratePhone(130)
+                    vibratePhone(200)
                     playBeepAudio(2500.0, 90)
+                    result.success(null)
+                }
+                "vibrateOnly" -> {
+                    vibratePhone(200)
                     result.success(null)
                 }
                 "beepError" -> {
@@ -98,9 +102,15 @@ class MainActivity: FlutterActivity() {
                 getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
             }
 
+            val audioAttrs = android.media.AudioAttributes.Builder()
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+                .build()
+
             if (vibrator != null && vibrator.hasVibrator()) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    vibrator.vibrate(VibrationEffect.createOneShot(durationMs, VibrationEffect.DEFAULT_AMPLITUDE))
+                    val effect = VibrationEffect.createOneShot(durationMs, 255)
+                    vibrator.vibrate(effect, audioAttrs)
                 } else {
                     @Suppress("DEPRECATION")
                     vibrator.vibrate(durationMs)
@@ -121,13 +131,20 @@ class MainActivity: FlutterActivity() {
                 getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
             }
 
+            val audioAttrs = android.media.AudioAttributes.Builder()
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+                .build()
+
             if (vibrator != null && vibrator.hasVibrator()) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    val timings = longArrayOf(0, 150, 100, 150)
-                    vibrator.vibrate(VibrationEffect.createWaveform(timings, -1))
+                    val timings = longArrayOf(0, 180, 100, 180)
+                    val amplitudes = intArrayOf(0, 255, 0, 255)
+                    val effect = VibrationEffect.createWaveform(timings, amplitudes, -1)
+                    vibrator.vibrate(effect, audioAttrs)
                 } else {
                     @Suppress("DEPRECATION")
-                    vibrator.vibrate(350)
+                    vibrator.vibrate(400)
                 }
             }
         } catch (e: Exception) {

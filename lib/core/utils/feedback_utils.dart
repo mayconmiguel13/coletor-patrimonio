@@ -9,35 +9,47 @@ class FeedbackUtils {
   }
 
   /// Feedback de Sucesso: Bip sonoro agudo de leitor de código de barras + vibração no motor físico
-  static Future<void> successFeedback() async {
+  static Future<void> successFeedback({bool silent = false}) async {
     // 1. Vibração direta no motor físico do aparelho
     HapticFeedback.vibrate();
 
-    // 2. Bip sonoro instantâneo de leitor (Hardware ToneGenerator Android / Fallback)
+    // 2. Feedback nativo (Vibração forçada + Bip opcional)
     try {
-      await _channel.invokeMethod('beepSuccess');
+      if (silent) {
+        await _channel.invokeMethod('vibrateOnly');
+      } else {
+        await _channel.invokeMethod('beepSuccess');
+      }
     } catch (_) {
-      try {
-        await SystemSound.play(SystemSoundType.click);
-      } catch (_) {}
+      if (!silent) {
+        try {
+          await SystemSound.play(SystemSoundType.click);
+        } catch (_) {}
+      }
     }
   }
 
   /// Feedback de Duplicata / Erro: Tom grave de aviso + vibração dupla
-  static Future<void> errorFeedback() async {
+  static Future<void> errorFeedback({bool silent = false}) async {
     // 1. Vibração dupla de alerta
     HapticFeedback.heavyImpact();
     Future.delayed(const Duration(milliseconds: 120), () {
       HapticFeedback.heavyImpact();
     });
 
-    // 2. Tom grave de alerta sonoro (Hardware ToneGenerator Android / Fallback)
+    // 2. Feedback nativo de erro
     try {
-      await _channel.invokeMethod('beepError');
+      if (silent) {
+        await _channel.invokeMethod('vibrateOnly');
+      } else {
+        await _channel.invokeMethod('beepError');
+      }
     } catch (_) {
-      try {
-        await SystemSound.play(SystemSoundType.alert);
-      } catch (_) {}
+      if (!silent) {
+        try {
+          await SystemSound.play(SystemSoundType.alert);
+        } catch (_) {}
+      }
     }
   }
 
