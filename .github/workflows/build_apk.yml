@@ -67,7 +67,7 @@ jobs:
                   f.write(manifest)
               print("AndroidManifest.xml atualizado com permissões.")
 
-          # 2. Criar regras do ProGuard para impedir que o R8 ofusque o MobileScanner e ML Kit
+          # 2. Criar regras do ProGuard
           proguard_path = "android/app/proguard-rules.pro"
           proguard_content = """
           -keep class dev.steenbakker.mobile_scanner.** { *; }
@@ -81,7 +81,7 @@ jobs:
               f.write(proguard_content)
           print("proguard-rules.pro configurado.")
 
-          # 3. Ajustar build.gradle: compileSdk 35, minSdk 21 e desativar minifyEnabled do R8
+          # 3. Ajustar compileSdk 35, minSdk 21 e desativar minificação R8 de forma compatível
           for path in glob.glob("android/app/build.gradle*"):
               with open(path, "r", encoding="utf-8") as f:
                   bg = f.read()
@@ -91,12 +91,22 @@ jobs:
               bg = bg.replace("minSdkVersion 16", "minSdkVersion 21")
               bg = bg.replace("minSdkVersion 19", "minSdkVersion 21")
               
-              # Desativa minificação agressiva que quebra o MobileScanner em release
-              if "buildTypes {" in bg:
-                  bg = bg.replace("buildTypes {", "buildTypes {\n        release {\n            minifyEnabled false\n            shrinkResources false\n        }", 1)
+              if path.endswith(".kts"):
+                  # Kotlin DSL
+                  target = 'signingConfig = signingConfigs.getByName("debug")'
+                  if target in bg:
+                      replacement = target + '\n            isMinifyEnabled = false\n            isShrinkResources = false'
+                      bg = bg.replace(target, replacement, 1)
+              else:
+                  # Groovy
+                  target = 'signingConfig signingConfigs.debug'
+                  if target in bg:
+                      replacement = target + '\n            minifyEnabled false\n            shrinkResources false'
+                      bg = bg.replace(target, replacement, 1)
+
               with open(path, "w", encoding="utf-8") as f:
                   f.write(bg)
-              print(f"build.gradle atualizado em {path} com minifyEnabled false.")
+              print(f"build.gradle configurado com sucesso em {path}.")
           EOF
 
       - name: Baixar Dependências
