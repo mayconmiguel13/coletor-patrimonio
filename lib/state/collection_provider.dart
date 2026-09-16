@@ -11,7 +11,7 @@ class CollectionProvider extends ChangeNotifier {
 
   CollectionProvider(this._repository);
 
-  // Estados da Sessão
+  // Estados da Sessão Ativa
   String _localidade = '';
   String _tipoEquipamento = AppConstants.tipoCpu;
   List<Equipment> _equipamentos = [];
@@ -64,6 +64,16 @@ class CollectionProvider extends ChangeNotifier {
       _equipamentos = _repository.getEquipmentsByLocalidade(_localidade);
     }
     notifyListeners();
+  }
+
+  /// Retorna o histórico de todas as secretarias com contagens e datas
+  List<LocalidadeSummary> getHistorico() {
+    return _repository.getLocalidadesSummary();
+  }
+
+  /// Retorna os equipamentos de qualquer localidade do histórico
+  List<Equipment> getEquipamentosPorLocalidade(String localidade) {
+    return _repository.getEquipmentsByLocalidade(localidade);
   }
 
   /// Processa a leitura de um código QR / Barras com debouncing e validação
@@ -135,8 +145,8 @@ class CollectionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Limpa a sessão atual
-  void resetSessao() {
+  /// Finaliza a sessão atual mantendo os dados salvos no Hive e limpa para nova coleta
+  void finalizarSessao() {
     _localidade = '';
     _tipoEquipamento = AppConstants.tipoCpu;
     _equipamentos = [];
@@ -150,10 +160,20 @@ class CollectionProvider extends ChangeNotifier {
     if (_localidade.isNotEmpty) {
       await _repository.deleteByLocalidade(_localidade);
     }
-    resetSessao();
+    finalizarSessao();
   }
 
-  /// Exportação TXT
+  /// Exclui uma localidade específica do histórico
+  Future<void> excluirLocalidadeHistorico(String localidade) async {
+    await _repository.deleteByLocalidade(localidade);
+    if (_localidade.trim().toLowerCase() == localidade.trim().toLowerCase()) {
+      finalizarSessao();
+    } else {
+      notifyListeners();
+    }
+  }
+
+  /// Exportação TXT da sessão ativa
   Future<File> exportarTXT() async {
     return await ExportUtils.exportTXT(
       equipamentos: _equipamentos,
@@ -161,11 +181,29 @@ class CollectionProvider extends ChangeNotifier {
     );
   }
 
-  /// Exportação XLSX
+  /// Exportação XLSX da sessão ativa
   Future<File> exportarXLSX() async {
     return await ExportUtils.exportXLSX(
       equipamentos: _equipamentos,
       localidade: _localidade,
+    );
+  }
+
+  /// Exportação TXT de qualquer localidade do histórico
+  Future<File> exportarLocalidadeTXT(String localidade) async {
+    final itens = _repository.getEquipmentsByLocalidade(localidade);
+    return await ExportUtils.exportTXT(
+      equipamentos: itens,
+      localidade: localidade,
+    );
+  }
+
+  /// Exportação XLSX de qualquer localidade do histórico
+  Future<File> exportarLocalidadeXLSX(String localidade) async {
+    final itens = _repository.getEquipmentsByLocalidade(localidade);
+    return await ExportUtils.exportXLSX(
+      equipamentos: itens,
+      localidade: localidade,
     );
   }
 }

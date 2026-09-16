@@ -81,6 +81,40 @@ class _ValidationScreenState extends State<ValidationScreen>
     }
   }
 
+  Future<void> _confirmarConclusao(BuildContext context) async {
+    FeedbackUtils.tapFeedback();
+    final provider = context.read<CollectionProvider>();
+    final local = provider.localidade;
+    final total = provider.equipamentos.length;
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Concluir Coleta?'),
+        content: Text(
+          'Deseja finalizar a coleta de "$local" com $total itens coletados?\n\n'
+          'Os dados permanecerão salvos no Histórico e o app voltará à tela inicial para uma nova coleta.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Continuar Coletando'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E7D32)),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Sim, Concluir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true && context.mounted) {
+      provider.finalizarSessao();
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<CollectionProvider>();
@@ -248,7 +282,18 @@ class _ValidationScreenState extends State<ValidationScreen>
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  // Botão Concluir Coleta
+                  ElevatedButton.icon(
+                    onPressed: () => _confirmarConclusao(context),
+                    icon: const Icon(Icons.check_circle_outline, size: 22),
+                    label: const Text('Concluir e Finalizar Coleta'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2E7D32),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
 
                   // Botão Voltar para Scanner
                   SizedBox(

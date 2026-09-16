@@ -4,6 +4,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 
 import 'core/theme/app_theme.dart';
+import 'core/utils/feedback_utils.dart';
 import 'data/repositories/equipment_repository.dart';
 import 'state/collection_provider.dart';
 import 'ui/screens/config_screen.dart';
@@ -22,6 +23,7 @@ void main() async {
 
   final equipmentRepository = EquipmentRepository();
   await equipmentRepository.init();
+  FeedbackUtils.init();
 
   runApp(
     MultiProvider(

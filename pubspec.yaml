@@ -17,6 +17,9 @@ dependencies:
   # Scanner de QR Code e Código de Barras com ML Kit
   mobile_scanner: ^5.2.3
 
+  # Efeitos sonoros instantâneos (Bip de leitor)
+  audioplayers: ^6.1.0
+
   # Geração de Excel (.xlsx) puro em Dart com suporte a múltiplas abas
   excel: ^4.0.6
 
@@ -43,3 +46,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/sounds/

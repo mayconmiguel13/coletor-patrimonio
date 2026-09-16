@@ -6,6 +6,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/feedback_utils.dart';
 import '../../state/collection_provider.dart';
 import 'scanner_screen.dart';
+import 'history_screen.dart';
+import '../widgets/app_drawer.dart';
 
 class ConfigScreen extends StatefulWidget {
   const ConfigScreen({super.key});
@@ -85,8 +87,21 @@ class _ConfigScreenState extends State<ConfigScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: const AppDrawer(currentRoute: 'config'),
       appBar: AppBar(
         title: const Text('COLETA DE EQUIPAMENTOS'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history_rounded),
+            tooltip: 'Histórico de Coletas',
+            onPressed: () {
+              FeedbackUtils.tapFeedback();
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const HistoryScreen()),
+              );
+            },
+          ),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(

@@ -2,6 +2,22 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../../core/constants/app_constants.dart';
 import '../models/equipment.dart';
 
+class LocalidadeSummary {
+  final String localidade;
+  final int totalCpus;
+  final int totalMonitores;
+  final DateTime ultimaColeta;
+
+  int get totalGeral => totalCpus + totalMonitores;
+
+  LocalidadeSummary({
+    required this.localidade,
+    required this.totalCpus,
+    required this.totalMonitores,
+    required this.ultimaColeta,
+  });
+}
+
 class EquipmentRepository {
   Box? _box;
 
@@ -58,6 +74,49 @@ class EquipmentRepository {
     // Ordenados pelo mais recente
     items.sort((a, b) => a.timestamp.compareTo(b.timestamp));
     return items;
+  }
+
+  /// Retorna lista agregada de secretarias/localidades com contagem e datas para a tela de Histórico
+  List<LocalidadeSummary> getLocalidadesSummary() {
+    final Map<String, List<Equipment>> grouped = {};
+    for (final raw in box.values) {
+      if (raw is Map) {
+        final eq = Equipment.fromMap(raw);
+        final key = eq.localidade.trim();
+        if (key.isNotEmpty) {
+          grouped.putIfAbsent(key, () => []).add(eq);
+        }
+      }
+    }
+
+    final List<LocalidadeSummary> summaries = [];
+    grouped.forEach((loc, items) {
+      int cpus = 0;
+      int monitores = 0;
+      DateTime lastDate = DateTime(2000);
+
+      for (final it in items) {
+        if (it.tipo.trim().toLowerCase() == AppConstants.tipoCpu.toLowerCase()) {
+          cpus++;
+        } else {
+          monitores++;
+        }
+        if (it.timestamp.isAfter(lastDate)) {
+          lastDate = it.timestamp;
+        }
+      }
+
+      summaries.add(LocalidadeSummary(
+        localidade: loc,
+        totalCpus: cpus,
+        totalMonitores: monitores,
+        ultimaColeta: lastDate,
+      ));
+    });
+
+    // Ordenar pelas mais recentes
+    summaries.sort((a, b) => b.ultimaColeta.compareTo(a.ultimaColeta));
+    return summaries;
   }
 
   /// Verifica duplicação no escopo da localidade e tipo
