@@ -1,38 +1,21 @@
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/services.dart';
 
 class FeedbackUtils {
-  static final AudioPlayer _player = AudioPlayer();
-  static bool _initialized = false;
+  static const MethodChannel _channel = MethodChannel('com.coletor.patrimonio/feedback');
 
-  /// Inicializa o contexto de áudio em baixa latência para notificações instantâneas
+  /// Inicialização do canal de feedback nativo
   static Future<void> init() async {
-    if (_initialized) return;
-    try {
-      await _player.setAudioContext(
-        AudioContext(
-          android: const AudioContextAndroid(
-            isSpeakerphoneOn: true,
-            stayAwake: false,
-            contentType: AndroidContentType.sonification,
-            usageType: AndroidUsageType.assistanceSonification,
-            audioFocus: AndroidAudioFocus.gainTransientMayDuck,
-          ),
-        ),
-      );
-      _initialized = true;
-    } catch (_) {}
+    // Canal nativo não requer inicialização assíncrona pesada
   }
 
-  /// Feedback de Sucesso: Bip sonoro agudo de leitor de código de barras + vibração no motor
+  /// Feedback de Sucesso: Bip sonoro agudo de leitor de código de barras + vibração no motor físico
   static Future<void> successFeedback() async {
     // 1. Vibração direta no motor físico do aparelho
     HapticFeedback.vibrate();
 
-    // 2. Bip sonoro nítido
+    // 2. Bip sonoro instantâneo de leitor (Hardware ToneGenerator Android / Fallback)
     try {
-      await _player.stop();
-      await _player.play(AssetSource('sounds/beep.wav'), volume: 1.0);
+      await _channel.invokeMethod('beepSuccess');
     } catch (_) {
       try {
         await SystemSound.play(SystemSoundType.click);
@@ -48,10 +31,9 @@ class FeedbackUtils {
       HapticFeedback.heavyImpact();
     });
 
-    // 2. Tom de alerta sonoro
+    // 2. Tom grave de alerta sonoro (Hardware ToneGenerator Android / Fallback)
     try {
-      await _player.stop();
-      await _player.play(AssetSource('sounds/alert.wav'), volume: 1.0);
+      await _channel.invokeMethod('beepError');
     } catch (_) {
       try {
         await SystemSound.play(SystemSoundType.alert);
