@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
@@ -17,10 +16,7 @@ class ScannerScreen extends StatefulWidget {
 }
 
 class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserver {
-  late MobileScannerController _scannerController;
-  int _scannerKey = 0;
-  bool _isPermissionGranted = false;
-  bool _isCheckingPermission = true;
+  late final MobileScannerController _scannerController;
   bool _isTorchOn = false;
   bool _isShowingContinuityDialog = false;
 
@@ -30,50 +26,16 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
     WidgetsBinding.instance.addObserver(this);
     _scannerController = MobileScannerController(
       facing: CameraFacing.back,
-      detectionSpeed: DetectionSpeed.normal,
+      detectionSpeed: DetectionSpeed.noDuplicates,
     );
-    _checkAndRequestPermission();
-  }
-
-  Future<void> _checkAndRequestPermission() async {
-    if (!mounted) return;
-    setState(() => _isCheckingPermission = true);
-
-    var status = await Permission.camera.status;
-    if (!status.isGranted) {
-      status = await Permission.camera.request();
-    }
-
-    if (mounted) {
-      setState(() {
-        _isPermissionGranted = status.isGranted;
-        _isCheckingPermission = false;
-        _scannerKey++;
-      });
-    }
-  }
-
-  void _reiniciarCamera() {
-    try {
-      _scannerController.dispose();
-    } catch (_) {}
-
-    _scannerController = MobileScannerController(
-      facing: CameraFacing.back,
-      detectionSpeed: DetectionSpeed.normal,
-    );
-
-    setState(() {
-      _isTorchOn = false;
-      _scannerKey++;
-    });
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // Reavalia permissão caso o usuário tenha ido às configurações do Android e voltado
-      _checkAndRequestPermission();
+      _scannerController.start();
+    } else if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      _scannerController.stop();
     }
   }
 
@@ -182,17 +144,15 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
             IconButton(
               icon: Icon(_isTorchOn ? Icons.flash_on : Icons.flash_off),
               tooltip: 'Lanterna',
-              onPressed: _isPermissionGranted
-                  ? () async {
-                      await _scannerController.toggleTorch();
-                      setState(() => _isTorchOn = !_isTorchOn);
-                    }
-                  : null,
+              onPressed: () async {
+                await _scannerController.toggleTorch();
+                setState(() => _isTorchOn = !_isTorchOn);
+              },
             ),
             IconButton(
               icon: const Icon(Icons.flip_camera_android),
               tooltip: 'Alternar Câmera',
-              onPressed: _isPermissionGranted ? () => _scannerController.switchCamera() : null,
+              onPressed: () => _scannerController.switchCamera(),
             ),
           ],
         ),
@@ -299,134 +259,75 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    if (_isCheckingPermission)
-                      const Center(
-                        child: Column(
+                    MobileScanner(
+                      controller: _scannerController,
+                      onDetect: _onDetect,
+                      errorBuilder: (context, error, child) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.error_outline, color: Colors.orange, size: 50),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Erro na câmera: ${error.errorCode.name}\n${error.errorDetails?.message ?? ""}',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                                ),
+                                const SizedBox(height: 16),
+                                ElevatedButton.icon(
+                                  onPressed: () {
+                                    _scannerController.stop().then((_) => _scannerController.start());
+                                  },
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text('Reiniciar Câmera'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+
+                    // Mira / Retângulo Guia
+                    Container(
+                      width: 260,
+                      height: 260,
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: provider.ultimoCodigoLido != null
+                              ? AppTheme.successColor
+                              : Colors.white.withOpacity(0.8),
+                          width: 2.5,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+
+                    // Dica de posicionamento
+                    Positioned(
+                      bottom: 24,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.65),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            CircularProgressIndicator(color: Colors.white),
-                            SizedBox(height: 16),
+                            Icon(Icons.crop_free, color: Colors.white, size: 18),
+                            SizedBox(width: 6),
                             Text(
-                              'Verificando câmera...',
-                              style: TextStyle(color: Colors.white, fontSize: 14),
+                              'Aponte para o QR Code ou Código de Barras',
+                              style: TextStyle(color: Colors.white, fontSize: 13),
                             ),
                           ],
                         ),
-                      )
-                    else if (!_isPermissionGranted)
-                      Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.videocam_off_outlined, color: Colors.white70, size: 54),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'Acesso à Câmera Necessário',
-                                style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'Para iniciar o escaneamento, autorize a permissão de câmera abaixo.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.white70, fontSize: 13),
-                              ),
-                              const SizedBox(height: 20),
-                              ElevatedButton.icon(
-                                onPressed: () async {
-                                  final s = await Permission.camera.status;
-                                  if (s.isPermanentlyDenied) {
-                                    await openAppSettings();
-                                  } else {
-                                    final res = await Permission.camera.request();
-                                    if (res.isGranted && mounted) {
-                                      setState(() {
-                                        _isPermissionGranted = true;
-                                        _scannerKey++;
-                                      });
-                                    } else {
-                                      await openAppSettings();
-                                    }
-                                  }
-                                },
-                                icon: const Icon(Icons.settings),
-                                label: const Text('Autorizar Câmera'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    else
-                      MobileScanner(
-                        key: ValueKey(_scannerKey),
-                        controller: _scannerController,
-                        onDetect: _onDetect,
-                        errorBuilder: (context, error, child) {
-                          return Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(24),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.error_outline, color: Colors.orange, size: 50),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    'Erro na câmera: ${error.errorCode.name}',
-                                    style: const TextStyle(color: Colors.white, fontSize: 15),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  ElevatedButton.icon(
-                                    onPressed: _reiniciarCamera,
-                                    icon: const Icon(Icons.refresh),
-                                    label: const Text('Reiniciar Câmera'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
                       ),
-
-                    // Mira / Retângulo Guia (visível quando a câmera estiver ativa)
-                    if (_isPermissionGranted && !_isCheckingPermission)
-                      Container(
-                        width: 260,
-                        height: 260,
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: provider.ultimoCodigoLido != null
-                                ? AppTheme.successColor
-                                : Colors.white.withOpacity(0.8),
-                            width: 2.5,
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-
-                    // Dica de posicionamento
-                    if (_isPermissionGranted && !_isCheckingPermission)
-                      Positioned(
-                        bottom: 24,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.65),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.crop_free, color: Colors.white, size: 18),
-                              SizedBox(width: 6),
-                              Text(
-                                'Aponte para o QR Code ou Código de Barras',
-                                style: TextStyle(color: Colors.white, fontSize: 13),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                    ),
                   ],
                 ),
               ),
