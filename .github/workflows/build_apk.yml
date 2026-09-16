@@ -56,6 +56,7 @@ jobs:
               manifest = manifest.replace("<application", perms + "\n    <application", 1)
               with open(manifest_path, "w", encoding="utf-8") as f:
                   f.write(manifest)
+              print("AndroidManifest.xml atualizado com permissões.")
 
           # 2. Ajustar compileSdk 34 e minSdk 21
           for path in glob.glob("android/app/build.gradle*"):
@@ -67,26 +68,17 @@ jobs:
               bg = bg.replace("minSdkVersion 19", "minSdkVersion 21")
               with open(path, "w", encoding="utf-8") as f:
                   f.write(bg)
+              print(f"SDK ajustado em {path}.")
           EOF
 
       - name: Baixar Dependências
         run: flutter pub get
 
-      - name: Compilar APK de Release
-        run: |
-          flutter build apk --release --no-tree-shake-icons -v > build.log 2>&1 || {
-            echo "=== RESUMO DO ERRO DE COMPILAÇÃO ==="
-            grep -E -C 3 "e:|FAILURE|Exception|error:" build.log | tail -n 60 || tail -n 60 build.log
-            exit 1
-          }
+      - name: Analisar Código Dart
+        run: flutter analyze
 
-      - name: Salvar Log de Erro se Falhar
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-error-log
-          path: build.log
-          if-no-files-found: ignore
+      - name: Compilar APK de Release
+        run: flutter build apk --release --no-tree-shake-icons
 
       - name: Disponibilizar APK para Download (Artifacts)
         uses: actions/upload-artifact@v4

@@ -25,9 +25,7 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _scannerController = MobileScannerController(
-      detectionSpeed: DetectionSpeed.noDuplicates,
       facing: CameraFacing.back,
-      torchEnabled: false,
     );
   }
 
