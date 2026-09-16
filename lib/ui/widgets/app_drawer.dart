@@ -103,6 +103,23 @@ class AppDrawer extends StatelessWidget {
             },
           ),
 
+          ListTile(
+            leading: const Icon(Icons.volume_up_outlined, color: AppTheme.primaryColor),
+            title: const Text('Testar Bip e Vibração', style: TextStyle(fontWeight: FontWeight.w500)),
+            subtitle: const Text('Dispara o bip de leitor e vibração física', style: TextStyle(fontSize: 11)),
+            onTap: () async {
+              await FeedbackUtils.successFeedback();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('🔊 Bip e 📳 Vibração disparados!'),
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+              }
+            },
+          ),
+
           const Divider(),
 
           const Spacer(),

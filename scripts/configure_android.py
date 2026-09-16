@@ -39,17 +39,25 @@ def main():
         f.write(proguard_content)
     print("proguard-rules.pro configurado.")
 
-    # 3. Injetar suporte a Bip nativo (ToneGenerator) no MainActivity.kt
+    # 3. Injetar suporte a Bip nativo (AudioTrack PCM + ToneGenerator + Vibrator) no MainActivity.kt
     main_activity_files = glob.glob("android/app/src/main/**/MainActivity.kt", recursive=True)
     if main_activity_files:
         kt_path = main_activity_files[0]
         kt_code = """package com.coletor.coletor_patrimonio
 
+import android.content.Context
+import android.media.AudioFormat
 import android.media.AudioManager
+import android.media.AudioTrack
 import android.media.ToneGenerator
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import kotlin.concurrent.thread
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.coletor.patrimonio/feedback"
@@ -58,7 +66,7 @@ class MainActivity: FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         try {
-            toneGenerator = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100)
+            toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -66,28 +74,115 @@ class MainActivity: FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "beepSuccess" -> {
-                    try {
-                        toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP, 80)
-                    } catch (e: Exception) {
-                        try {
-                            toneGenerator = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100)
-                            toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP, 80)
-                        } catch (_: Exception) {}
-                    }
+                    vibratePhone(130)
+                    playBeepAudio(2500.0, 90)
                     result.success(null)
                 }
                 "beepError" -> {
-                    try {
-                        toneGenerator?.startTone(ToneGenerator.TONE_PROP_NACK, 250)
-                    } catch (e: Exception) {
-                        try {
-                            toneGenerator = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100)
-                            toneGenerator?.startTone(ToneGenerator.TONE_PROP_NACK, 250)
-                        } catch (_: Exception) {}
-                    }
+                    vibrateError()
+                    playErrorAudio()
                     result.success(null)
                 }
                 else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun vibratePhone(durationMs: Long) {
+        try {
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vm = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                vm?.defaultVibrator ?: (getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)
+            } else {
+                @Suppress("DEPRECATION")
+                getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            }
+
+            if (vibrator != null && vibrator.hasVibrator()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator.vibrate(VibrationEffect.createOneShot(durationMs, VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(durationMs)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun vibrateError() {
+        try {
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vm = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                vm?.defaultVibrator ?: (getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)
+            } else {
+                @Suppress("DEPRECATION")
+                getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            }
+
+            if (vibrator != null && vibrator.hasVibrator()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val timings = longArrayOf(0, 150, 100, 150)
+                    vibrator.vibrate(VibrationEffect.createWaveform(timings, -1))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator.vibrate(350)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun playBeepAudio(frequency: Double, durationMs: Int) {
+        thread(start = true) {
+            try {
+                // Tenta ToneGenerator direto no canal STREAM_MUSIC
+                try {
+                    toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP, durationMs)
+                } catch (_: Exception) {}
+
+                // Gera onda senoidal pura PCM 16-bit diretamente no AudioTrack
+                val sampleRate = 44100
+                val numSamples = (durationMs * sampleRate) / 1000
+                val generatedSnd = ByteArray(2 * numSamples)
+                for (i in 0 until numSamples) {
+                    val dVal = Math.sin(2.0 * Math.PI * i.toDouble() / (sampleRate / frequency))
+                    val sVal = (dVal * 32767).toInt().toShort()
+                    generatedSnd[2 * i] = (sVal.toInt() and 0x00ff).toByte()
+                    generatedSnd[2 * i + 1] = ((sVal.toInt() and 0xff00) ushr 8).toByte()
+                }
+                val track = AudioTrack(
+                    AudioManager.STREAM_MUSIC,
+                    sampleRate,
+                    AudioFormat.CHANNEL_OUT_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT,
+                    generatedSnd.size,
+                    AudioTrack.MODE_STATIC
+                )
+                track.write(generatedSnd, 0, generatedSnd.size)
+                track.play()
+                Thread.sleep((durationMs + 40).toLong())
+                track.release()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    private fun playErrorAudio() {
+        thread(start = true) {
+            try {
+                try {
+                    toneGenerator?.startTone(ToneGenerator.TONE_PROP_NACK, 250)
+                } catch (_: Exception) {}
+
+                playBeepAudio(700.0, 150)
+                Thread.sleep(180)
+                playBeepAudio(550.0, 200)
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
@@ -95,7 +190,7 @@ class MainActivity: FlutterActivity() {
 """
         with open(kt_path, "w", encoding="utf-8") as f:
             f.write(kt_code)
-        print(f"MainActivity.kt configurado com ToneGenerator em {kt_path}.")
+        print(f"MainActivity.kt configurado com suporte a Bip e Vibracao em {kt_path}.")
 
     # 4. Forcar local.properties com sdk 21 e 35
     with open("android/local.properties", "a", encoding="utf-8") as f:
