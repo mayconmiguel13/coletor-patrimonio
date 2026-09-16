@@ -17,89 +17,70 @@ class ScannerScreen extends StatefulWidget {
 }
 
 class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserver {
-  MobileScannerController? _scannerController;
-  bool _isCameraReady = false;
-  String? _cameraError;
-  bool _isShowingContinuityDialog = false;
+  late MobileScannerController _scannerController;
+  int _scannerKey = 0;
+  bool _isPermissionGranted = false;
+  bool _isCheckingPermission = true;
   bool _isTorchOn = false;
+  bool _isShowingContinuityDialog = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initCamera();
+    _scannerController = MobileScannerController(
+      facing: CameraFacing.back,
+      detectionSpeed: DetectionSpeed.normal,
+    );
+    _checkAndRequestPermission();
   }
 
-  Future<void> _initCamera() async {
-    setState(() {
-      _isCameraReady = false;
-      _cameraError = null;
-    });
+  Future<void> _checkAndRequestPermission() async {
+    if (!mounted) return;
+    setState(() => _isCheckingPermission = true);
 
-    // 1. Checa e solicita permissão explicitamente
     var status = await Permission.camera.status;
     if (!status.isGranted) {
       status = await Permission.camera.request();
     }
 
-    if (!status.isGranted) {
-      if (mounted) {
-        setState(() {
-          _cameraError = 'Permissão de câmera não concedida.';
-          _isCameraReady = false;
-        });
-      }
-      return;
+    if (mounted) {
+      setState(() {
+        _isPermissionGranted = status.isGranted;
+        _isCheckingPermission = false;
+        _scannerKey++;
+      });
     }
+  }
 
-    // 2. Limpa controller anterior se existir
-    if (_scannerController != null) {
-      try {
-        await _scannerController!.dispose();
-      } catch (_) {}
-      _scannerController = null;
-    }
-
-    // 3. Inicializa novo controller de forma limpa
+  void _reiniciarCamera() {
     try {
-      final controller = MobileScannerController(
-        autoStart: false,
-        facing: CameraFacing.back,
-      );
+      _scannerController.dispose();
+    } catch (_) {}
 
-      await controller.start();
+    _scannerController = MobileScannerController(
+      facing: CameraFacing.back,
+      detectionSpeed: DetectionSpeed.normal,
+    );
 
-      if (mounted) {
-        setState(() {
-          _scannerController = controller;
-          _isCameraReady = true;
-          _cameraError = null;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _cameraError = 'Erro ao inicializar câmera: $e';
-          _isCameraReady = false;
-        });
-      }
-    }
+    setState(() {
+      _isTorchOn = false;
+      _scannerKey++;
+    });
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_scannerController == null || !_isCameraReady) return;
     if (state == AppLifecycleState.resumed) {
-      _scannerController?.start();
-    } else if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
-      _scannerController?.stop();
+      // Reavalia permissão caso o usuário tenha ido às configurações do Android e voltado
+      _checkAndRequestPermission();
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _scannerController?.dispose();
+    _scannerController.dispose();
     super.dispose();
   }
 
@@ -201,9 +182,9 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
             IconButton(
               icon: Icon(_isTorchOn ? Icons.flash_on : Icons.flash_off),
               tooltip: 'Lanterna',
-              onPressed: _isCameraReady
+              onPressed: _isPermissionGranted
                   ? () async {
-                      await _scannerController?.toggleTorch();
+                      await _scannerController.toggleTorch();
                       setState(() => _isTorchOn = !_isTorchOn);
                     }
                   : null,
@@ -211,7 +192,7 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
             IconButton(
               icon: const Icon(Icons.flip_camera_android),
               tooltip: 'Alternar Câmera',
-              onPressed: _isCameraReady ? () => _scannerController?.switchCamera() : null,
+              onPressed: _isPermissionGranted ? () => _scannerController.switchCamera() : null,
             ),
           ],
         ),
@@ -318,9 +299,68 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    if (_isCameraReady && _scannerController != null)
+                    if (_isCheckingPermission)
+                      const Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(color: Colors.white),
+                            SizedBox(height: 16),
+                            Text(
+                              'Verificando câmera...',
+                              style: TextStyle(color: Colors.white, fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (!_isPermissionGranted)
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.videocam_off_outlined, color: Colors.white70, size: 54),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Acesso à Câmera Necessário',
+                                style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Para iniciar o escaneamento, autorize a permissão de câmera abaixo.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.white70, fontSize: 13),
+                              ),
+                              const SizedBox(height: 20),
+                              ElevatedButton.icon(
+                                onPressed: () async {
+                                  final s = await Permission.camera.status;
+                                  if (s.isPermanentlyDenied) {
+                                    await openAppSettings();
+                                  } else {
+                                    final res = await Permission.camera.request();
+                                    if (res.isGranted && mounted) {
+                                      setState(() {
+                                        _isPermissionGranted = true;
+                                        _scannerKey++;
+                                      });
+                                    } else {
+                                      await openAppSettings();
+                                    }
+                                  }
+                                },
+                                icon: const Icon(Icons.settings),
+                                label: const Text('Autorizar Câmera'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
                       MobileScanner(
-                        controller: _scannerController!,
+                        key: ValueKey(_scannerKey),
+                        controller: _scannerController,
                         onDetect: _onDetect,
                         errorBuilder: (context, error, child) {
                           return Center(
@@ -337,7 +377,7 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
                                   ),
                                   const SizedBox(height: 16),
                                   ElevatedButton.icon(
-                                    onPressed: _initCamera,
+                                    onPressed: _reiniciarCamera,
                                     icon: const Icon(Icons.refresh),
                                     label: const Text('Reiniciar Câmera'),
                                   ),
@@ -346,60 +386,10 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
                             ),
                           );
                         },
-                      )
-                    else if (_cameraError != null)
-                      Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.videocam_off_outlined, color: Colors.white70, size: 54),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'Câmera não iniciada',
-                                style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _cameraError!,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(color: Colors.white70, fontSize: 13),
-                              ),
-                              const SizedBox(height: 20),
-                              ElevatedButton.icon(
-                                onPressed: () async {
-                                  final s = await Permission.camera.status;
-                                  if (s.isPermanentlyDenied) {
-                                    openAppSettings();
-                                  } else {
-                                    _initCamera();
-                                  }
-                                },
-                                icon: const Icon(Icons.refresh),
-                                label: const Text('Tentar Novamente / Autorizar'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    else
-                      const Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(color: Colors.white),
-                            SizedBox(height: 16),
-                            Text(
-                              'Iniciando câmera...',
-                              style: TextStyle(color: Colors.white, fontSize: 14),
-                            ),
-                          ],
-                        ),
                       ),
 
                     // Mira / Retângulo Guia (visível quando a câmera estiver ativa)
-                    if (_isCameraReady)
+                    if (_isPermissionGranted && !_isCheckingPermission)
                       Container(
                         width: 260,
                         height: 260,
@@ -415,7 +405,7 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
                       ),
 
                     // Dica de posicionamento
-                    if (_isCameraReady)
+                    if (_isPermissionGranted && !_isCheckingPermission)
                       Positioned(
                         bottom: 24,
                         child: Container(
