@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
@@ -27,6 +28,17 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
     _scannerController = MobileScannerController(
       facing: CameraFacing.back,
     );
+    _verificarPermissao();
+  }
+
+  Future<void> _verificarPermissao() async {
+    final status = await Permission.camera.status;
+    if (!status.isGranted) {
+      final res = await Permission.camera.request();
+      if (res.isGranted) {
+        _scannerController.start();
+      }
+    }
   }
 
   @override
@@ -46,14 +58,8 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
     if (rawValue == null || rawValue.trim().isEmpty) return;
 
     final provider = context.read<CollectionProvider>();
-    final sucesso = await provider.processarCodigo(rawValue);
-
-    if (sucesso && mounted) {
-      // Verifica se atingiu a meta do lote atual (ex: 10 CPUs)
-      if (provider.atingiuMetaAtual) {
-        _abrirDialogoContinuidade();
-      }
-    }
+    await provider.processarCodigo(rawValue);
+    // Coleta contínua e ilimitada: sem popups automáticos a cada 10 itens!
   }
 
   void _abrirDialogoContinuidade() async {
@@ -118,7 +124,6 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
   Widget build(BuildContext context) {
     final provider = context.watch<CollectionProvider>();
     final count = provider.contadorAtual;
-    final meta = provider.metaColeta;
 
     return PopScope(
       canPop: true,
@@ -188,17 +193,15 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: count >= meta
-                            ? AppTheme.successColor.withOpacity(0.15)
-                            : AppTheme.primaryColor.withOpacity(0.1),
+                        color: AppTheme.primaryColor.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        '✓ $count/$meta coletados',
-                        style: TextStyle(
+                        count == 1 ? '✓ 1 coletado' : '✓ $count coletados',
+                        style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
-                          color: count >= meta ? AppTheme.successColor : AppTheme.primaryColor,
+                          color: AppTheme.primaryColor,
                         ),
                       ),
                     ),
@@ -262,6 +265,44 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
                     MobileScanner(
                       controller: _scannerController,
                       onDetect: _onDetect,
+                      errorBuilder: (context, error, child) {
+                        return Container(
+                          color: Colors.black,
+                          padding: const EdgeInsets.all(24),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.camera_alt_outlined, color: Colors.white70, size: 54),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'Câmera não iniciada',
+                                  style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Permissão de câmera não detectada.\nToque no botão abaixo para autorizar.',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                                ),
+                                const SizedBox(height: 20),
+                                ElevatedButton.icon(
+                                  onPressed: () async {
+                                    final res = await Permission.camera.request();
+                                    if (res.isGranted) {
+                                      _scannerController.start();
+                                    } else if (res.isPermanentlyDenied) {
+                                      openAppSettings();
+                                    }
+                                  },
+                                  icon: const Icon(Icons.check_circle_outline),
+                                  label: const Text('Conceder Permissão'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
 
                     // Mira / Retângulo Guia

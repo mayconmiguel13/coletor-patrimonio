@@ -14,7 +14,6 @@ class CollectionProvider extends ChangeNotifier {
   // Estados da Sessão
   String _localidade = '';
   String _tipoEquipamento = AppConstants.tipoCpu;
-  int _metaColeta = AppConstants.metaPadraoColeta;
   List<Equipment> _equipamentos = [];
   
   String? _ultimoCodigoLido;
@@ -25,7 +24,6 @@ class CollectionProvider extends ChangeNotifier {
   // Getters
   String get localidade => _localidade;
   String get tipoEquipamento => _tipoEquipamento;
-  int get metaColeta => _metaColeta;
   List<Equipment> get equipamentos => _equipamentos;
   String? get ultimoCodigoLido => _ultimoCodigoLido;
   String? get mensagemAviso => _mensagemAviso;
@@ -43,8 +41,6 @@ class CollectionProvider extends ChangeNotifier {
 
   int get contadorAtual => equipamentosDoTipoAtual.length;
 
-  bool get atingiuMetaAtual => contadorAtual >= _metaColeta;
-
   /// Define a localidade e carrega registros existentes
   void setLocalidade(String localidade) {
     _localidade = localidade.trim();
@@ -57,12 +53,6 @@ class CollectionProvider extends ChangeNotifier {
     _tipoEquipamento = tipo;
     _ultimoCodigoLido = null;
     _mensagemAviso = null;
-    notifyListeners();
-  }
-
-  /// Altera a meta de coleta (padrão 10)
-  void setMetaColeta(int meta) {
-    _metaColeta = meta;
     notifyListeners();
   }
 

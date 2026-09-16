@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/feedback_utils.dart';
@@ -16,7 +17,6 @@ class ConfigScreen extends StatefulWidget {
 class _ConfigScreenState extends State<ConfigScreen> {
   final TextEditingController _localidadeController = TextEditingController();
   String _selectedTipo = AppConstants.tipoCpu;
-  int _metaColeta = AppConstants.metaPadraoColeta;
 
   @override
   void initState() {
@@ -36,14 +36,46 @@ class _ConfigScreenState extends State<ConfigScreen> {
 
   bool get _isFormValid => _localidadeController.text.trim().isNotEmpty;
 
-  void _iniciarColeta() {
+  Future<void> _iniciarColeta() async {
     if (!_isFormValid) return;
 
     FeedbackUtils.tapFeedback();
+
+    // 1. Solicita permissão da câmera explicitamente
+    final status = await Permission.camera.request();
+    if (!status.isGranted) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Permissão de Câmera'),
+            content: const Text(
+              'O aplicativo precisa de permissão de acesso à câmera para escanear os patrimônios.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  openAppSettings();
+                },
+                child: const Text('Abrir Configurações'),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+
     final provider = context.read<CollectionProvider>();
     provider.setLocalidade(_localidadeController.text.trim());
     provider.setTipoEquipamento(_selectedTipo);
-    provider.setMetaColeta(_metaColeta);
 
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const ScannerScreen()),
@@ -160,36 +192,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
-
-              // Meta de Coleta
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Meta por lote (alerta de continuidade):',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.secondaryColor,
-                    ),
-                  ),
-                  DropdownButton<int>(
-                    value: _metaColeta,
-                    underline: const SizedBox(),
-                    items: const [
-                      DropdownMenuItem(value: 5, child: Text('5 itens')),
-                      DropdownMenuItem(value: 10, child: Text('10 itens')),
-                      DropdownMenuItem(value: 20, child: Text('20 itens')),
-                      DropdownMenuItem(value: 50, child: Text('50 itens')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) setState(() => _metaColeta = val);
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 36),
 
               // Botão Iniciar Coleta
               ElevatedButton.icon(
