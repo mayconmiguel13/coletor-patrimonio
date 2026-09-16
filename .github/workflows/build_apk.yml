@@ -74,22 +74,29 @@ jobs:
           -keep interface dev.steenbakker.mobile_scanner.** { *; }
           -keep class com.google.mlkit.** { *; }
           -keep class com.google.android.gms.** { *; }
+          -keep class xyz.luan.audioplayers.** { *; }
           -dontwarn dev.steenbakker.mobile_scanner.**
           -dontwarn com.google.mlkit.**
+          -dontwarn xyz.luan.audioplayers.**
           """
           with open(proguard_path, "w", encoding="utf-8") as f:
               f.write(proguard_content)
           print("proguard-rules.pro configurado.")
 
-          # 3. Ajustar compileSdk 35, minSdk 21 e desativar minificação R8 de forma compatível
+          # 3. Forçar local.properties com sdk 23 e 35
+          with open("android/local.properties", "a", encoding="utf-8") as f:
+              f.write("\nflutter.minSdkVersion=23\nflutter.compileSdkVersion=35\n")
+
+          # 4. Ajustar compileSdk 35, minSdk 23 e desativar minificação R8 de forma compatível
           for path in glob.glob("android/app/build.gradle*"):
               with open(path, "r", encoding="utf-8") as f:
                   bg = f.read()
-              bg = bg.replace("flutter.minSdkVersion", "21")
+              bg = bg.replace("flutter.minSdkVersion", "23")
               bg = bg.replace("flutter.compileSdkVersion", "35")
               bg = bg.replace("compileSdkVersion 34", "compileSdkVersion 35")
-              bg = bg.replace("minSdkVersion 16", "minSdkVersion 21")
-              bg = bg.replace("minSdkVersion 19", "minSdkVersion 21")
+              bg = bg.replace("minSdkVersion 16", "minSdkVersion 23")
+              bg = bg.replace("minSdkVersion 19", "minSdkVersion 23")
+              bg = bg.replace("minSdkVersion 21", "minSdkVersion 23")
               
               if path.endswith(".kts"):
                   # Kotlin DSL
