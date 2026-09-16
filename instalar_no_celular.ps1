@@ -22,26 +22,31 @@ Write-Host "Celular detectado!" -ForegroundColor Green
 $apkUrl = "https://github.com/mayconmiguel13/coletor-patrimonio/releases/download/latest/app-release.apk"
 $destApk = "$PSScriptRoot\app-release.apk"
 
-Write-Host "Baixando o APK mais recente..." -ForegroundColor Cyan
+Write-Host "Baixando o APK mais recente do GitHub..." -ForegroundColor Cyan
 try {
     Invoke-WebRequest -Uri $apkUrl -OutFile $destApk
 } catch {
     Write-Host "Aviso: Usando versão local já existente." -ForegroundColor Yellow
 }
 
-# 2. Envia direto para a pasta Downloads do celular em 1 segundo
-Write-Host "Enviando APK para a pasta Downloads do celular..." -ForegroundColor Cyan
-& $adb push $destApk "/sdcard/Download/coletor-patrimonio.apk"
-Write-Host "-> APK copiado para o celular em: Downloads/coletor-patrimonio.apk" -ForegroundColor Green
+# 2. Envia para a pasta Downloads do celular
+Write-Host "Enviando cópia para a pasta Downloads do celular..." -ForegroundColor Cyan
+& $adb push $destApk "/sdcard/Download/coletor-patrimonio.apk" | Out-Null
 
 # 3. Tenta instalar diretamente via ADB
-Write-Host "Instalando automaticamente..." -ForegroundColor Cyan
+Write-Host "Instalando APK no celular..." -ForegroundColor Cyan
 $installResult = & $adb install -r $destApk 2>&1
+
+if ($installResult -match "INSTALL_FAILED_UPDATE_INCOMPATIBLE") {
+    Write-Host "Assinatura divergente da versão anterior. Reinstalando de forma limpa..." -ForegroundColor Yellow
+    & $adb uninstall com.coletor.coletor_patrimonio | Out-Null
+    $installResult = & $adb install $destApk 2>&1
+}
 
 if ($installResult -match "Success") {
     Write-Host "Instalação concluída com sucesso!" -ForegroundColor Green
     & $adb shell am start -n com.coletor.coletor_patrimonio/.MainActivity
 } else {
-    Write-Host "Dica Xiaomi: Ative a opção 'Instalar via USB' nas Opções do Desenvolvedor para instalação direta." -ForegroundColor Yellow
-    Write-Host "Ou abra o arquivo 'coletor-patrimonio.apk' na pasta Downloads do seu celular para instalar agora." -ForegroundColor Cyan
+    Write-Host "Aviso na instalação: $installResult" -ForegroundColor Yellow
+    Write-Host "O APK também está disponível na pasta Downloads do celular (coletor-patrimonio.apk)." -ForegroundColor Cyan
 }
